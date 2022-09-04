@@ -14,12 +14,12 @@ then
 	
 	exit 1
 fi
-
+if [ ! -d $(dirname $1 ) ]
+then 
+	mkdir $(dirname  $1 ) 
+fi
 
 echo $2>$1
-
-
-
 
 
 
