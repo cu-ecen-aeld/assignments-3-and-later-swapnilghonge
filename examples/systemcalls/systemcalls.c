@@ -1,4 +1,18 @@
+/* Assignment -3 Part1 System Calls
+ * Author : Swapnil Ghonge
+ * Details: This files contains the system() function, exec() and execv() function calls definition
+ * Refernces:  Linux System Programming Book Chapter 5 and Chapter 2
+ * 		
+ */ 
+
+
 #include "systemcalls.h"
+#include "sys/types.h"
+#include "sys/wait.h"
+#include "unistd.h"
+#include "stdlib.h"
+#include "fcntl.h"
+#include "stdio.h"
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +30,19 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int ret_val;
+	ret_val = system(cmd);
+	
+	// Check for error Conditions
+	if (ret_val!= 1)
+	{
+	printf("error in system");
+	return false;
+	}
+	else
+    	{
+    	return true;
+    	}
 }
 
 /**
@@ -58,7 +83,41 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+	int status;
 
+	
+	pid_t pid;
+
+	pid = fork ();
+	// Check for the error in process id
+	if (pid == -1)
+	{
+		return false;
+	}
+	else if (pid == 0)
+	{
+		execv (command[0], command);
+		exit(-1);
+	}
+	
+	
+	// Waiting for the status of the process
+	if (waitpid (pid, &status, 0) == -1)
+    	{
+    	return false;
+    	}
+    	// Checking for exit status
+	if (WIFEXITED(status) == true)
+	{
+		if (WEXITSTATUS(status) != 0)
+		{
+			return false;
+		}
+		else 
+		{	
+		return true;
+		}
+	}	
     va_end(args);
 
     return true;
@@ -92,7 +151,35 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+	int kidpid;
+	int status;
+	int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+	if (fd < 0) { perror("open"); abort(); }
+	
+	switch (kidpid = fork()) 
+	{
+		case -1: perror("fork"); return false;
+		
+		case 0:
+			if (dup2(fd, 1) < 0) { perror("dup2"); abort(); }
+			close(fd);
+			execv (command[0], command);
+			exit(-1);
+			
+		default:
+			close(fd);
+			if (waitpid (kidpid, &status, 0) == -1)
+				return false;
+				
+			if (WIFEXITED(status) == true)
+			{
+				if (WEXITSTATUS(status) != 0)
+					return false;
+				else 
+					return true;
+			}
+				
+	}
     va_end(args);
 
     return true;
