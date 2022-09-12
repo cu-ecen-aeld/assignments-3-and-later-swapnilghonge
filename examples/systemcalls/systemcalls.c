@@ -151,6 +151,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+	//creating a child process
 	int kidpid;
 	int status;
 	int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
