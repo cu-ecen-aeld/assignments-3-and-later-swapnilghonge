@@ -42,6 +42,7 @@ else
 fi
 
 #echo "Removing the old writer utility and compiling as a native application"
+#commenting
 #make clean
 #make
 
