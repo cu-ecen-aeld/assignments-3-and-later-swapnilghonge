@@ -49,7 +49,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} Image 
     
     #build a kernel image
-    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    make -j12 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
     
     #build the kernel modules
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
@@ -77,9 +77,8 @@ fi
 
 # TODO: Create necessary base directories
 	# Adding an image 
-	cd "$OUTDIR"
-	mkdir rootfs
-	cd rootfs
+	mkdir -p ${OUTDIR}/rootfs
+	cd ${OUTDIR}/rootfs
 	# making a series of directories
 	mkdir -p bin dev etc home lib lib64 proc sbin sys tmp usr var
 	mkdir -p usr/bin/lib usr/sbin
@@ -106,7 +105,7 @@ fi
 # TODO: Make and install busybox
    
     
-    make CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
+    make -j12 CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
     
     
 echo "Library dependencies"
