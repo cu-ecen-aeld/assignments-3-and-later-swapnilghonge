@@ -5,6 +5,8 @@
 set -e
 set -u
 
+sudo env "PATH=$PATH" 
+
 OUTDIR=/tmp/aeld
 KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
 KERNEL_VERSION=v5.1.10
@@ -33,8 +35,8 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     cd linux-stable
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
-   wget https://github.com/torvalds/linux/commit/e33a814e772cdc36436c8c188d8c42d019fda639.diff
-    git apply e33a814e772cdc36436c8c188d8c42d019fda639.diff 
+   #wget https://github.com/torvalds/linux/commit/e33a814e772cdc36436c8c188d8c42d019fda639.diff
+    #git apply e33a814e772cdc36436c8c188d8c42d019fda639.diff 
     # TODO: Add your kernel build steps here
   
   
@@ -49,7 +51,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} Image 
     
     #build a kernel image
-    make -j12 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
     
     #build the kernel modules
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
@@ -79,6 +81,7 @@ fi
 	# Adding an image 
 	mkdir -p ${OUTDIR}/rootfs
 	cd ${OUTDIR}/rootfs
+	
 	# making a series of directories
 	mkdir -p bin dev etc home lib lib64 proc sbin sys tmp usr var
 	mkdir -p usr/bin/lib usr/sbin
@@ -105,7 +108,9 @@ fi
 # TODO: Make and install busybox
    
     
-    make -j12 CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
+    make -j4 CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
+    
+    cd ${OUTDIR}/rootfs
     
     
 echo "Library dependencies"
@@ -114,13 +119,13 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 	export SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
-	cp $SYSROOT/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
+	cp $SYSROOT/lib/ld-linux-aarch64.so.1 lib
 	
-	cp $SYSROOT/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64
+	cp $SYSROOT/lib64/libm.so.6 lib64
 	
-	cp $SYSROOT/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64
+	cp $SYSROOT/lib64/libresolv.so.2 lib64
 	
-	cp $SYSROOT/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64
+	cp $SYSROOT/lib64/libc.so.6 lib64
 	
 # TODO: Make device nodes
 	# make null  node
@@ -131,18 +136,22 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 	cd ${FINDER_APP_DIR}
 	
 	make clean
-	make CROSS_COMPILE=${CROSS_COMPILE} all
+	make CROSS_COMPILE=${CROSS_COMPILE} 
 	
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
-	cp ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home
+	#cp ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home
 
-	cp ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home
+	#cp ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home
 
-	cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
+	#cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
 
-	cp ${FINDER_APP_DIR}/conf/ -r ${OUTDIR}/rootfs/home
+	#cp ${FINDER_APP_DIR}/conf/ -r ${OUTDIR}/rootfs/home
+	
+	cp ./writer ${OUTDIR}/rootfs/home 
+	cp ./*.sh ${OUTDIR}/rootfs/home 
+	cp -r ./conf/ ${OUTDIR}/rootfs/home 
 
 # TODO: Chown the root directory
 	cd ${OUTDIR}/rootfs
