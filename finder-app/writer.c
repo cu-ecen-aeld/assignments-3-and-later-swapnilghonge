@@ -1,6 +1,7 @@
 /* Assignment -2 Intro to System Programming
  * Author : Swapnil Ghonge
- * Details: This files contains fucntions which coorelate with writer.sh				
+ * Details: This files contains fucntions which coorelate with writer.sh.
+ 				
 */
 #include<stdio.h>
 #include <sys/types.h>
