@@ -140,7 +140,8 @@ int main(int argc, char **argv)
     }
 
     
-    file_fd = open("/var/tmp/aesdsocketdata",O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP |S_IWGRP | S_IROTH | S_IWOTH, 0777);
+    /*file_fd = open("/var/tmp/aesdsocketdata",O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP |S_IWGRP | S_IROTH | S_IWOTH, 0777);*/
+    file_fd = open("/var/tmp/aesdsocketdata",O_RDWR | O_CREAT | O_TRUNC, 0777);
     
     if (file_fd == -1)
     {
