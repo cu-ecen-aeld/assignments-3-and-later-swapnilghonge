@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Assignment 1 : Basics of Bash Scripting
 # Author: Swapnil Ghonge
 # Description: This file contains functon of finder.sh
