@@ -57,10 +57,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_buffer_entry *entry = NULL;
     PDEBUG("read %zu bytes with offset %lld\n",count,*f_pos);
     
-    mutex_lock(&aesd_device.lock);
-    entry = aesd_circular_buffer_find_entry_offset_for_fpos(&aesd_device.buffer, *f_pos, &entry_offset);
-    
-    mutex_unlock(&aesd_device.lock);
+   
 
     return retval;
 }
@@ -72,40 +69,16 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     const char *freed = NULL;
     PDEBUG("write %zu bytes with offset %lld\n",count,*f_pos);
     
-    mutex_lock(&aesd_device.lock);    
+       
    
     while(count)
     {
-        get_user(aesd_device.partial_content[aesd_device.partial_size], &buf[retval]);
+        
         retval++;
-        aesd_device.partial_size++;
+       
         count--;
 
-        
-        if(aesd_device.partial_content[aesd_device.partial_size - 1] == '\n')
-        {
-            
-            struct aesd_buffer_entry entry;
-            entry.buffptr = kmalloc(sizeof(char)*aesd_device.partial_size, GFP_KERNEL);
-            
-            entry.size = aesd_device.partial_size;
-
-           
-            memcpy((void *)entry.buffptr, aesd_device.partial_content, aesd_device.partial_size);
-
-            
-            freed = aesd_circular_buffer_add_entry(&aesd_device.buffer, &entry);
-            
-            if(freed)
-            {
-                kfree(freed);
-                freed = NULL;
-            }
-
-            
-            kfree(aesd_device.partial_content);
-            aesd_device.partial_size = 0;
-           
+       
             if(count)
             {
                 aesd_device.partial_content = kmalloc(sizeof(char)*count, GFP_KERNEL);
@@ -114,7 +87,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     }
 
    
-    mutex_unlock(&aesd_device.lock);
+    
 
 
     return retval;
@@ -157,9 +130,7 @@ int aesd_init_module(void)
     }
     memset(&aesd_device,0,sizeof(struct aesd_dev));
 
-    
-    mutex_init(&aesd_device.lock);
-  
+   
   
     result = aesd_setup_cdev(&aesd_device);
 
@@ -179,7 +150,7 @@ void aesd_cleanup_module(void)
 
     cdev_del(&aesd_device.cdev);
 
-    mutex_destroy(&aesd_device.lock);
+  
 
     unregister_chrdev_region(devno, 1);
 }
