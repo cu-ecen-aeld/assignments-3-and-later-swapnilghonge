@@ -67,29 +67,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     ssize_t retval = 0;
     const char *freed = NULL;
-    PDEBUG("write %zu bytes with offset %lld\n",count,*f_pos);
-    
-       
+    PDEBUG("write %zu bytes with offset %lld\n",count,*f_pos); 
    
-    while(count)
-    {
-        
-        retval++;
-       
-        count--;
-
-       
-            if(count)
-            {
-                aesd_device.partial_content = kmalloc(sizeof(char)*count, GFP_KERNEL);
-            }
-        }
-    }
-
-   
-    
-
-
     return retval;
 }
 struct file_operations aesd_fops = {
