@@ -1,5 +1,5 @@
 /* Author: Swapnil Ghonge
- * Assignment: Assignment 6 Part1 
+ * Assignment: Assignment 9 
  * Refernces: 	https://www.geeksforgeeks.org/socket-programming-cc/
  *		https://beej.us/guide/bgnet/html/#sockaddr_inman
  *		https://beej.us/guide/bgnet/html/#sockaddr_inman
@@ -7,14 +7,17 @@
  *		https://man7.org/linux/man-pages/man2/bind.2.html
  *		https://man7.org/linux/man-pages/man3/strftime.3.html
  *		https://askubuntu.com/questions/1009266/pylint3-and-pip3-broken
-*/
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <signal.h>
+#include <netdb.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <syslog.h>
@@ -24,23 +27,30 @@
 #include <sys/queue.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <string.h>
-#include <netdb.h>
+#include "../aesd-char-driver/aesd_ioctl.h"
+
+
+#define USE_AESD_CHAR_DEVICE 1
+#if USE_AESD_CHAR_DEVICE
+#define AESDCHARDEVICE "/dev/aesdchar"
+#else
+#define AESDCHARDEVICE "/var/tmp/aesdsocketdata"
+#endif
+
+#if USE_AESD_CHAR_DEVICE
+const char * ioctl_cmd = "AESDCHAR_IOCSEEKTO:";
+#endif
 
 int file_fd;
 int sockfd;
 pthread_mutex_t lock;
-// structure for node
+
 typedef struct node
 {
     pthread_t thread;
-    bool thr_comp_stat;
-    char ip_client[INET6_ADDRSTRLEN];
     int clientfd;
+    bool thr_compl_stat;
+    char ip_client[INET6_ADDRSTRLEN];
     
     TAILQ_ENTRY(node) entries;
 }thread_data_t;
@@ -75,6 +85,7 @@ void time_stamp()
     }
     
 }
+
 // free the memory of head and tail pointer
 void memory_free()
 {
@@ -86,6 +97,7 @@ void memory_free()
         free(temp);
     }
 }
+
 // Signal Handler of the signal received
 void signal_hanlder(int signum)
 {
@@ -118,9 +130,14 @@ void * thread_function(void* thread_param)
     char read_data, write_data;
     char *write_buf = (char*)malloc(sizeof(char));
     int byte_rec = 0;
-    data->thr_comp_stat=false;
-   
-   // waiting untill packet sattus us complete 
+    data->thr_compl_stat=false;
+    
+    file_fd = open(AESDCHARDEVICE, O_RDWR | O_APPEND | O_CREAT, 0777);
+    if (file_fd < 0)
+    {
+        printf("Error in opening file\n");
+    }
+
     while(!pak_compl_stat)
     {
         if(stat_realloc)
@@ -128,15 +145,13 @@ void * thread_function(void* thread_param)
             write_buf = realloc(write_buf, byte_rec+1);
             stat_realloc = false;
         }
-        
-        // receive bytes using recv
+        //recieve bytes
         int recv_byt = recv(data->clientfd, &write_data, 1, 0);
         if(recv_byt < 1)
         {
             printf("Error receiving bytes\n");
             perror("recv error\n");
         }
-        
         if(recv_byt == 1)
         {
             stat_realloc = true;
@@ -148,34 +163,45 @@ void * thread_function(void* thread_param)
         }
     }
 
-     
-    pthread_mutex_lock(&lock);
+    if(strncmp(write_buf, ioctl_cmd, strlen(ioctl_cmd)) == 0) {
+        printf("ioctl command received\n");
+        struct aesd_seekto seekto;
+        
+        sscanf(write_buf, "%s:%d,%d", ioctl_cmd, &seekto.write_cmd, &seekto.write_cmd_offset);
 
-        // write bytes in file 
-    int write_bytes = write(file_fd, write_buf, byte_rec);
-    if(write_bytes != byte_rec)
-    {
-        printf("write bytes failed\n");
-        perror("write bytes failed\n");
+        if(ioctl(file_fd, AESDCHAR_IOCSEEKTO, &seekto)) {
+            printf("ioctl failed  %d\n", errno);
+            perror("ioctl failed %d\n", errno);
+        }
     } 
-    printf("write bytes success\n");       
+    
+    else 
+    {
+        pthread_mutex_lock(&lock);
+        int write_bytes = write(file_fd, write_buf, byte_rec);
+        if(write_bytes != byte_rec) {
+            printf("write failed\n");
+            perror("write failed\n");
+        }
+        printf("write success\n");
+        pthread_mutex_unlock(&lock);
+    }      
          
-    lseek(file_fd, 0, SEEK_SET);
+    
 
-    // waiting for read file status
+    //read
     while(read(file_fd, &read_data, 1) != 0)
     {
+        pthread_mutex_lock(&lock);
         int sent_status = send(data->clientfd, &read_data, 1, 0);
         if (sent_status == 0)
         {
             printf("send failed\n");
         }
+        pthread_mutex_unlock(&lock);
     }
     printf("send bytes complete\n");
     pak_compl_stat = false;
-
-    
-    pthread_mutex_unlock(&lock);
 
     // close connection
     int close_fd = close(data->clientfd);
@@ -183,80 +209,72 @@ void * thread_function(void* thread_param)
         syslog(LOG_DEBUG, "Closed connection from %s\n", data->ip_client);
     }
 
-    
+    // reset and free memory
     byte_rec = 0;
     free(write_buf);
-    data->thr_comp_stat=true;
+    data->thr_compl_stat=true;
+    close(file_fd);
     return thread_param;
 }
 
 int main(int argc, char **argv) {
 
     
-    signal(SIGINT, signal_hanlder);
-    signal(SIGTERM, signal_hanlder);
-    signal(SIGALRM, signal_hanlder);
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+    signal(SIGALRM, handle_signal);
     
-
-    struct sockaddr_in servadd, clientadd;
-    socklen_t clientfd;
+    struct sockaddr_in server_add, client_add;
+    socklen_t client_length;
    
 
-    // socket
+    
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        perror("Error in Socket\n");
-        
+	perror("Error in Socket\n");     
     }
-    memset((void *) &servadd, 0, sizeof(servadd));
-    servadd.sin_family = AF_INET;
-    servadd.sin_port = htons(9000);
-    servadd.sin_addr.s_addr = INADDR_ANY;
+    memset((void *) &server_add, 0, sizeof(server_add));
+    server_add.sin_family = AF_INET;
+    server_add.sin_port = htons(9000);
+    server_add.sin_addr.s_addr = INADDR_ANY;
 
-    
     int yes = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
         perror("Error in setsockopt");
         exit(1);
     }
 
-   // binding 
-    int sock = bind(sockfd, (struct sockaddr *) &servadd, sizeof(struct sockaddr));
-    
-    if (sock == -1) 
+
+    int sockbind = bind(sockfd, (struct sockaddr *) &server_add, sizeof(struct sockaddr));
+    if (sockbind == -1) 
     {
         close(sockfd);
         
         perror("Error binding \n");
-        
+       
     }
 
-    
-    if (argc > 1) 
-    {
-    	 
-        if (!strcmp(argv[1], "-d")) {
+   
+    if (argc > 1) {
+        if (!strcmp(argv[1], "-d"))
+         {
             
-            /*create a process*/
             pid_t pid = fork();
 
-            if (pid < 0) 
-            {
+            if (pid < 0)
+             {
                 
                 exit(-1);
             } 
             else if (pid == 0) 
             {
-            	/*create a new session and prcess group*/
-            	
-                if (setsid() < 0) 
-                {
+                if (setsid() < 0) {
                     
                     exit(-1);
                 }
-		/*set the working directory to the root directory*/
+
                 if (chdir("/") == -1) {
-                   
+                    
                     exit(-1);
                 }
                 /*redirect fd's 0,1,2 to /dev/null*/
@@ -264,7 +282,6 @@ int main(int argc, char **argv) {
                 dup(0); 	/*stdout*/
                 dup(0);
                 printf("Daemon created\n");
-               
             } 
             else 
             {
@@ -273,17 +290,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    //printf("opening /var/tmp/aesdsocketdata\n");
-    
-    // open
-    file_fd = open("/var/tmp/aesdsocketdata",O_RDWR | O_CREAT | O_TRUNC, 0777);
-
-    if (file_fd == -1) {
-        perror("Error in opening file descriptor.");
-    }
-   
-    
-   
+  
     pthread_mutex_init(&lock, NULL);
 
     TAILQ_INIT(&head);
@@ -291,38 +298,42 @@ int main(int argc, char **argv) {
     int listenfd;
     bool alarm_flag = false;
 
-    // listen
+ 
     listenfd = listen(sockfd, 5);
-     if (listenfd == -1) 
-     {
+    
+    if (listenfd == -1) {
         perror("Error in Listening \n");
        
     }
    
+
     while (1) {
         thread_data_t *data = (thread_data_t *) malloc(sizeof(thread_data_t));
-        clientfd = sizeof(clientadd);
-        data->clientfd = accept(sockfd, (struct sockaddr *) &clientadd, &clientfd);
+        client_length = sizeof(client_add);
+        data->clientfd = accept(sockfd, (struct sockaddr *) &client_add, &client_length);
 
         if (data->clientfd == -1) {
             perror("Error in accepting\n");
             return -1;
         }
-        
-        inet_ntop(clientadd.sin_family,(struct sockaddr *) &clientadd, data->ip_client, sizeof(data->ip_client));
-        syslog(LOG_DEBUG, "Accepted a connection from %s\n", data->ip_client);  
+        printf("accept success\n");
+        inet_ntop(client_add.sin_family,(struct sockaddr *) &client_add, data->ip_client, sizeof(data->ip_client));
 
-        
+       
+        syslog(LOG_DEBUG, "Accepted a connection from %s\n", data->ip_client);  // log to syslog
+
         pthread_create(&(data->thread), NULL, &thread_function, (void *)data);
 
         TAILQ_INSERT_TAIL(&head, data, entries);
-        
         data = NULL;
+        free(data);
 
-        if (!alarm_flag) {
-            alarm_flag = true;
-            printf("alarm set\n");
-            alarm(10);
+        if(!AESDCHARDEVICE) {
+            if (!alarm_flag) {
+                alarm_flag = true;
+                printf("alarm set\n");
+                alarm(10);
+            }
         }
 
         thread_data_t *entry = NULL;
@@ -330,7 +341,7 @@ int main(int argc, char **argv) {
         {
             printf("check for the pthread join\n");
             pthread_join(entry->thread, NULL);
-            if (entry->thr_comp_stat) {
+            if (entry->thr_compl_stat) {
                 TAILQ_REMOVE(&head, entry, entries);
                 free(entry);
                 break;
@@ -338,7 +349,7 @@ int main(int argc, char **argv) {
         }
         
     }
-    // closing the operation
+    
     close(sockfd);
     close(file_fd);
 }
