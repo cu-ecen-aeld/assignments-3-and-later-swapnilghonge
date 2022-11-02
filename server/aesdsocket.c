@@ -171,7 +171,7 @@ void * thread_function(void* thread_param)
 
         if(ioctl(file_fd, AESDCHAR_IOCSEEKTO, &seekto)) {
             printf("ioctl failed  %d\n", errno);
-            perror("ioctl failed %d\n", errno);
+           
         }
     } 
     
@@ -220,9 +220,9 @@ void * thread_function(void* thread_param)
 int main(int argc, char **argv) {
 
     
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-    signal(SIGALRM, handle_signal);
+    signal(SIGINT, signal_hanlder);
+    signal(SIGTERM, signal_hanlder);
+    signal(SIGALRM, signal_hanlder);
     
     struct sockaddr_in server_add, client_add;
     socklen_t client_length;
